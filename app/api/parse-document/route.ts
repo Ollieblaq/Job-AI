@@ -40,6 +40,46 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Helper to sanitize and normalize text
+    const cleanText = (text: string): string => {
+      if (!text) return "";
+      const lines = text.split(/\r?\n/);
+      const cleanedLines: string[] = [];
+
+      for (const line of lines) {
+        const trimmedLine = line.trimEnd();
+
+        // Remove every line matching /-*\s*Page \(\d+\) Break\s*-*/gi
+        if (/-*\s*Page \(\d+\) Break\s*-*/gi.test(trimmedLine)) {
+          continue;
+        }
+
+        // Strip runs of dashes used as separators (e.g., --, ---, -----)
+        const sanitizedLine = trimmedLine.replace(/-{2,}/g, "");
+
+        cleanedLines.push(sanitizedLine);
+      }
+
+      // Collapse 3+ blank lines into one (at most 1 consecutive blank line)
+      const collapsedLines: string[] = [];
+      let consecutiveEmptyCount = 0;
+      for (const line of cleanedLines) {
+        if (line.trim() === "") {
+          consecutiveEmptyCount++;
+          if (consecutiveEmptyCount <= 1) {
+            collapsedLines.push("");
+          }
+        } else {
+          consecutiveEmptyCount = 0;
+          collapsedLines.push(line);
+        }
+      }
+
+      return collapsedLines.join("\n").trim();
+    };
+
+    extractedText = cleanText(extractedText);
+
     if (!extractedText || !extractedText.trim()) {
       return NextResponse.json(
         { error: "Could not extract any text from the document" },
